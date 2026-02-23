@@ -35,10 +35,15 @@ function show(page) {
 // ─────────────────────────────────────────────
 // OVERVIEW
 // ─────────────────────────────────────────────
+function safeAuc(dataset, model) {
+  try { const v = dataset[model] && dataset[model].auc; return (v && isFinite(v)) ? +v : 0.5; }
+  catch(e) { return 0.5; }
+}
+
 function renderOverview() {
   const models  = ['Decision Tree','Bagging (RF)','AdaBoost','Gradient Boosting','Logistic (GLM)'];
-  const cr_aucs = models.map(m => CR[m]  ? CR[m].auc  : null);
-  const ch_aucs = models.map(m => CHN[m] ? CHN[m].auc : null);
+  const cr_aucs = models.map(m => safeAuc(CR,  m));
+  const ch_aucs = models.map(m => safeAuc(CHN, m));
 
   plt('ov-radar', [
     { type:'scatterpolar', r:cr_aucs, theta:models, fill:'toself',
@@ -53,20 +58,24 @@ function renderOverview() {
     }
   }));
 
-  plt('ov-bar', [
-    { type:'bar',
-      x: ['Credit Risk','Insurance','Churn','Fraud'],
-      y: [
-        CR._meta.n_train  + CR._meta.n_test,
-        INS._meta.n_train + INS._meta.n_test,
-        CHN._meta.n_train + CHN._meta.n_test,
-        FRD._meta.n_test  * 4,
-      ],
-      marker: { color: COLORS },
-      text: ['2500','2500','2500','3000'],
-      textposition: 'outside',
-    }
-  ], layout({ showlegend:false, yaxis:{ title:'Records' } }));
+  // Dataset sizes — read safely from _meta, fallback to known sizes
+  const crN   = (CR._meta  && CR._meta.n_train  && CR._meta.n_test)
+                ? CR._meta.n_train  + CR._meta.n_test  : 2500;
+  const insN  = (INS._meta && INS._meta.n_train && INS._meta.n_test)
+                ? INS._meta.n_train + INS._meta.n_test : 2500;
+  const chnN  = (CHN._meta && CHN._meta.n_train && CHN._meta.n_test)
+                ? CHN._meta.n_train + CHN._meta.n_test : 2500;
+  const frdN  = (FRD._meta && FRD._meta.n_test)
+                ? FRD._meta.n_test * 4 : 3000;
+
+  plt('ov-bar', [{
+    type:'bar',
+    x: ['Credit Risk','Insurance','Churn','Fraud'],
+    y: [crN, insN, chnN, frdN],
+    marker: { color: COLORS },
+    text: [crN, insN, chnN, frdN].map(String),
+    textposition: 'outside',
+  }], layout({ showlegend:false, yaxis:{ title:'Records', range:[0, Math.max(crN,insN,chnN,frdN)*1.2] } }));
 }
 
 // ─────────────────────────────────────────────

@@ -210,17 +210,25 @@ def train_regression_suite(df, features, target, seed=42):
     }
     results = {}
     for name, mdl in models.items():
-        Xt, Xv = (Xtr_s, Xte_s) if name == "Tweedie GLM" else (Xtr, Xte)
-        mdl.fit(Xt, ytr)
-        pred = mdl.predict(Xv).clip(0)
-        results[name] = {
-            "rmse": round(np.sqrt(mean_squared_error(yte, pred)), 2),
-            "mae":  round(mean_absolute_error(yte, pred), 2),
-            "r2":   round(r2_score(yte, pred), 4),
-            "pred_sample":   pred[:200].tolist(),
-            "actual_sample": yte[:200].tolist(),
-            "feat_imp": get_feat_imp(mdl, features),
-        }
+        try:
+            Xt, Xv = (Xtr_s, Xte_s) if name == "Tweedie GLM" else (Xtr, Xte)
+            mdl.fit(Xt, ytr)
+            pred = mdl.predict(Xv).clip(0)
+            r2_val   = r2_score(yte, pred)
+            rmse_val = np.sqrt(mean_squared_error(yte, pred))
+            mae_val  = mean_absolute_error(yte, pred)
+            # Guard against NaN/Inf from degenerate predictions
+            results[name] = {
+                "rmse": round(float(rmse_val) if np.isfinite(rmse_val) else 0, 2),
+                "mae":  round(float(mae_val)  if np.isfinite(mae_val)  else 0, 2),
+                "r2":   round(float(r2_val)   if np.isfinite(r2_val)   else 0, 4),
+                "pred_sample":   pred[:200].tolist(),
+                "actual_sample": yte[:200].tolist(),
+                "feat_imp": get_feat_imp(mdl, features),
+            }
+        except Exception as e:
+            print(f"  ⚠️  {name} regression failed: {e}")
+            results[name] = {"rmse":0,"mae":0,"r2":0,"pred_sample":[],"actual_sample":[],"feat_imp":[]}
 
     # statsmodels Gamma GLM
     Xsm, Xsm_te = sm.add_constant(Xtr_s), sm.add_constant(Xte_s)
@@ -383,10 +391,11 @@ def index():
     from flask import render_template_string
     return render_template_string(
         BASE_HTML,
-        cr_auc      = CR_RESULTS["Gradient Boosting"]["auc"],
-        chn_auc     = CHN_RESULTS["Gradient Boosting"]["auc"],
-        frd_auc     = FRD_RESULTS["gradient_boosting"]["auc"],
-        ins_r2      = INS_RESULTS["Gradient Boosting"]["r2"],
+        cr_auc      = CR_RESULTS.get("Gradient Boosting", {}).get("auc", "N/A"),
+        chn_auc     = CHN_RESULTS.get("Gradient Boosting", {}).get("auc", "N/A"),
+        frd_auc     = FRD_RESULTS.get("gradient_boosting", {}).get("auc", "N/A"),
+        ins_r2      = round(float(INS_RESULTS.get("Gradient Boosting", {}).get("r2", 0)), 4)
+                      if INS_RESULTS.get("Gradient Boosting") else "N/A",
         frd_rate    = f'{FRD_RESULTS["_meta"]["fraud_rate"]*100:.1f}%',
         frd_iso_auc = FRD_RESULTS["isolation_forest"]["auc"],
         frd_gb_auc  = FRD_RESULTS["gradient_boosting"]["auc"],
