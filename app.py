@@ -133,7 +133,10 @@ def get_feat_imp(mdl, features):
 def train_classification_suite(df, features, target, seed=42):
     X = df[features].values
     y = df[target].values
-    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=seed, stratify=y)
+    try:
+        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=seed, stratify=y)
+    except ValueError:
+        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=seed)
     scaler = StandardScaler()
     Xtr_s, Xte_s = scaler.fit_transform(Xtr), scaler.transform(Xte)
 
@@ -249,7 +252,10 @@ def train_fraud_detection(df, seed=42):
     features = ["amount", "hour", "velocity", "distance_km", "merchant_risk"]
     X = df[features].values
     y = df["is_fraud"].values
-    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=seed, stratify=y)
+    try:
+        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=seed, stratify=y)
+    except ValueError:
+        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.25, random_state=seed)
 
     iso      = IsolationForest(n_estimators=100, contamination=0.05, random_state=seed)
     iso.fit(Xtr)
