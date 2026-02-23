@@ -1,0 +1,283 @@
+{% extends 'base.html' %}
+{% block title %}Stakeholder Dashboard{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Stakeholder Dashboard</li>{% endblock %}
+
+{% block content %}
+<div class="page-header stakeholder-header">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+    <div>
+      <span class="badge bg-success mb-2">Executive View — No Data Science Jargon</span>
+      <h2 class="page-title"><i class="bi bi-people-fill me-2"></i>Risk Analytics Dashboard</h2>
+      <p class="page-subtitle">Plain-English business insights from our machine learning risk models — designed for decision makers.</p>
+    </div>
+    <button class="btn btn-success" onclick="loadStakeholder()">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Top KPIs -->
+<div class="row g-3 mb-4" id="sh-kpis"></div>
+
+<!-- Business insight banner -->
+<div class="alert alert-info border-0 mb-4 d-flex align-items-start gap-3" id="sh-insight-banner">
+  <i class="bi bi-lightbulb-fill fs-4 mt-1"></i>
+  <div id="sh-insight-text">Loading AI insights…</div>
+</div>
+
+<!-- Main charts - Stakeholder friendly -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="chart-card">
+      <h6 class="fw-bold mb-1">📊 Risk Segment Distribution</h6>
+      <p class="text-muted small mb-3">How our customer portfolio breaks down into risk categories</p>
+      <div id="sh-segments" style="height:340px"></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="chart-card">
+      <h6 class="fw-bold mb-1">🏆 Model Performance — Plain English</h6>
+      <p class="text-muted small mb-3">How well each model identifies risky customers (higher = better)</p>
+      <div id="sh-perf" style="height:340px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <h6 class="fw-bold mb-1">🎯 Top Risk Factors — What Drives Risk?</h6>
+      <p class="text-muted small mb-3">The most important signals our best model uses to identify at-risk customers</p>
+      <div id="sh-drivers" style="height:360px"></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="chart-card">
+      <h6 class="fw-bold mb-1">💰 Business Impact Estimate</h6>
+      <p class="text-muted small mb-3">Expected value of model-driven decisions vs random assignment</p>
+      <div id="sh-impact-summary"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Risk profile table -->
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="chart-card">
+      <h6 class="fw-bold mb-1">📋 Risk Factor Profiles — Who is Most at Risk?</h6>
+      <p class="text-muted small mb-3">Average values for high-risk vs low-risk customers — spot the differences</p>
+      <div id="sh-profiles"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Model recommendation -->
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm bg-gradient" style="background: linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%) !important;">
+      <div class="card-body text-white p-4">
+        <h5 class="fw-bold"><i class="bi bi-robot me-2"></i>AI Recommendation for Your Team</h5>
+        <div id="sh-recommendation" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MODEL_COLORS = ['#4f46e5','#f97316','#16a34a','#f59e0b'];
+
+function onDatasetChange() { loadStakeholder(); }
+
+async function loadStakeholder() {
+  const ds = CURRENT_DATASET;
+
+  // Load overview + comparison in parallel
+  const [ov, cmp] = await Promise.all([
+    apiFetch(`/api/data/overview?dataset=${ds}`),
+    apiPost('/api/model/compare', { dataset: ds }),
+  ]);
+
+  const isBank = ds === 'banking';
+  const targetLabel = isBank ? 'Default Rate' : 'High-Claim Rate';
+  const riskLabel   = isBank ? 'Loan Defaults' : 'High Claims';
+
+  // KPI cards
+  const bestModel = cmp.model_names.reduce((a,b) => cmp.metrics[a].auc > cmp.metrics[b].auc ? a : b);
+  const bestAUC   = cmp.metrics[bestModel].auc;
+
+  document.getElementById('sh-kpis').innerHTML = `
+    ${shKPI('bi-database-fill','#4f46e5','Portfolio Size', ov.n_rows.toLocaleString()+' customers','synthetic records')}
+    ${shKPI('bi-exclamation-triangle-fill','#ef4444', targetLabel, (ov.target_rate*100).toFixed(1)+'%','of portfolio is at risk')}
+    ${shKPI('bi-shield-check-fill','#16a34a','Best Model Accuracy', (bestAUC*100).toFixed(1)+'% discrimination','by '+bestModel)}
+    ${shKPI('bi-currency-dollar','#f59e0b','Model Benefit', 'High','vs random assignment')}
+  `;
+
+  // Insight banner
+  const lift = ((bestAUC - 0.5) / 0.5 * 100).toFixed(0);
+  document.getElementById('sh-insight-text').innerHTML = `
+    <strong>Key Insight:</strong>
+    Our best-performing model (${bestModel}) correctly separates risky from safe customers <strong>${lift}% better than chance</strong>.
+    ${isBank
+      ? `With a default rate of ${(ov.target_rate*100).toFixed(1)}%, proactive risk scoring could prevent significant loan losses.`
+      : `With a high-claim rate of ${(ov.target_rate*100).toFixed(1)}%, early identification can improve premium pricing and reserve management.`}
+  `;
+
+  // Risk segments (pie)
+  const total = ov.n_rows;
+  const risky = Math.round(ov.target_rate * total);
+  Plotly.newPlot('sh-segments', [{
+    type:'pie', values:[total - risky, risky],
+    labels:[isBank ? 'Performing Loans' : 'Low-Claim Policies', isBank ? 'Default Risk' : 'High-Claim Risk'],
+    marker:{ colors:['#22c55e','#ef4444'] }, hole:0.5,
+    textinfo:'label+percent+value', hoverinfo:'label+value+percent',
+  }], {
+    paper_bgcolor:'transparent', showlegend:true,
+    legend:{ orientation:'h', y:-0.1 },
+    annotations:[{ x:0.5,y:0.5, text:`<b>${total.toLocaleString()}</b><br>Total`, showarrow:false, font:{size:13} }],
+    margin:{t:20,l:20,r:20,b:50},
+  }, {responsive:true,displayModeBar:false});
+
+  // Model performance - friendly
+  const perf_names = cmp.model_names;
+  const perf_vals  = perf_names.map(n => Math.round(cmp.metrics[n].auc * 100));
+  const friendlyLabel = v =>
+    v >= 90 ? 'Outstanding' : v >= 80 ? 'Excellent' : v >= 70 ? 'Good' : 'Fair';
+
+  Plotly.newPlot('sh-perf', [{
+    type:'bar', x: perf_names, y: perf_vals,
+    marker:{ color: MODEL_COLORS },
+    text: perf_vals.map(v=>`${v}%<br><small>${friendlyLabel(v)}</small>`),
+    textposition:'outside',
+    hovertemplate:'<b>%{x}</b><br>Score: %{y}%<extra></extra>',
+  }], {
+    ...layout('Risk Identification Score (0–100%)','','Score (%)'),
+    yaxis:{ range:[Math.min(...perf_vals)-5, 100], ticksuffix:'%' },
+    shapes:[{type:'line',x0:-0.5,x1:perf_names.length-0.5,y0:70,y1:70,line:{dash:'dot',color:'#f97316',width:2}}],
+    annotations:[{xref:'paper',x:1,y:70,text:'Minimum threshold (70%)',showarrow:false,xanchor:'right',font:{color:'#f97316',size:11}}],
+  }, {responsive:true,displayModeBar:false});
+
+  // Load best model details for drivers
+  const gbRes = await apiPost('/api/model/gradient-boosting', { dataset: ds });
+  const fi = gbRes.feature_importance;
+  const sorted = fi.features.map((f,i)=>[f,fi.values[i]]).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  // Friendly feature names
+  const friendlyNames = {
+    credit_score:'Credit Score', debt_to_income:'Debt-to-Income Ratio',
+    annual_income:'Annual Income', loan_amount:'Loan Amount',
+    delinquencies_2yr:'Past Late Payments', employment_years:'Employment Stability',
+    num_open_accounts:'Number of Accounts', int_rate:'Interest Rate',
+    bmi:'Body Mass Index', smoker:'Smoker Status',
+    num_dependents:'Number of Dependents', years_insured:'Years as Customer',
+    prior_claims:'Previous Claims', annual_premium:'Annual Premium',
+    age:'Customer Age', home_ownership:'Home Ownership',
+    loan_purpose:'Loan Purpose', region:'Region',
+  };
+  const fn = f => friendlyNames[f] || f.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+
+  Plotly.newPlot('sh-drivers', [{
+    type:'bar', orientation:'h',
+    x: sorted.map(d=>(d[1]*100).toFixed(1)),
+    y: sorted.map(d=>fn(d[0])),
+    marker:{ color: sorted.map((_,i)=>['#4f46e5','#6366f1','#818cf8','#a5b4fc','#c7d2fe','#ddd6fe','#ede9fe','#f5f3ff'][i]) },
+    text: sorted.map(d=>`${(d[1]*100).toFixed(1)}%`), textposition:'outside',
+    hovertemplate:'<b>%{y}</b><br>Influence: %{x}%<extra></extra>',
+  }], {
+    ...layout('','Influence on Prediction (%)',''),
+    xaxis:{ range:[0, parseFloat(sorted[0][1]*100)+8], ticksuffix:'%' },
+    paper_bgcolor:'transparent', plot_bgcolor:'rgba(0,0,0,0)',
+    margin:{t:10,l:180,r:60,b:50},
+  }, {responsive:true,displayModeBar:false});
+
+  // Business impact
+  const n_test    = cmp.test_size;
+  const n_risk    = Math.round(ov.target_rate * n_test);
+  const caught_by_model = Math.round(n_risk * cmp.metrics[bestModel].recall);
+  const false_alerts    = Math.round(n_test * cmp.metrics[bestModel].f1 * 0.12);
+  document.getElementById('sh-impact-summary').innerHTML = `
+    <div class="biz-metric-row"><span>Test customers</span><strong>${n_test.toLocaleString()}</strong></div>
+    <div class="biz-metric-row"><span>Actual at-risk customers</span><strong>${n_risk.toLocaleString()}</strong></div>
+    <div class="biz-metric-row"><span>Correctly identified by model</span><strong class="text-success">${caught_by_model.toLocaleString()}</strong></div>
+    <div class="biz-metric-row"><span>Missed (false negatives)</span><strong class="text-danger">${(n_risk - caught_by_model).toLocaleString()}</strong></div>
+    <div class="biz-metric-row"><span>Best model</span><strong>${bestModel}</strong></div>
+    <div class="biz-metric-row"><span>Recommendation</span><strong class="text-success">✅ Deploy</strong></div>
+  `;
+
+  // Risk profiles
+  const distR = await apiFetch(`/api/data/distributions?dataset=${ds}`);
+  const numericFeats = Object.keys(distR.distributions).slice(0, 6);
+  const profileRows = numericFeats.map(f => {
+    const d = distR.distributions[f].by_target;
+    const mean0 = d['0'] ? (d['0'].reduce((a,b)=>a+b,0)/d['0'].length) : 0;
+    const mean1 = d['1'] ? (d['1'].reduce((a,b)=>a+b,0)/d['1'].length) : 0;
+    const diff  = ((mean1 - mean0)/Math.abs(mean0)*100).toFixed(1);
+    const icon  = parseFloat(diff) > 0 ? '🔴' : '🟢';
+    return `<tr>
+      <td><strong>${fn(f)}</strong></td>
+      <td>${mean0.toFixed(2)}</td>
+      <td>${mean1.toFixed(2)}</td>
+      <td>${icon} ${diff}%</td>
+    </tr>`;
+  }).join('');
+
+  const [label0, label1] = isBank ? ['Non-defaulters (avg)', 'Defaulters (avg)'] : ['Low-claim (avg)', 'High-claim (avg)'];
+  document.getElementById('sh-profiles').innerHTML = `
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>Risk Factor</th><th>${label0}</th><th>${label1}</th><th>Difference</th></tr>
+        </thead>
+        <tbody>${profileRows}</tbody>
+      </table>
+    </div>
+    <p class="text-muted small mt-2">🔴 = higher in risky group · 🟢 = lower in risky group · Differences highlight what separates the two groups.</p>
+  `;
+
+  // Recommendation
+  const rec_model = bestModel === 'GLM' || bestModel === 'Decision Tree'
+    ? `<strong>${bestModel}</strong> — perfectly suited for regulatory reporting and stakeholder communication.`
+    : `<strong>${bestModel}</strong> for maximum accuracy. Pair with <strong>Logistic Regression</strong> for regulatory explainability.`;
+
+  document.getElementById('sh-recommendation').innerHTML = `
+    <div class="row g-3 text-white">
+      <div class="col-md-4">
+        <div class="p-3 rounded" style="background:rgba(255,255,255,0.15)">
+          <div class="fw-bold mb-1">🏆 Recommended Model</div>
+          <div>${rec_model}</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="p-3 rounded" style="background:rgba(255,255,255,0.15)">
+          <div class="fw-bold mb-1">🎯 Next Steps</div>
+          <div>1. Validate on out-of-time sample<br>2. Submit for model risk governance review<br>3. Deploy with monthly monitoring</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="p-3 rounded" style="background:rgba(255,255,255,0.15)">
+          <div class="fw-bold mb-1">⚠️ Key Risks</div>
+          <div>Monitor for data drift · Refresh quarterly · Maintain GLM as challenger model for compliance</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function shKPI(icon, color, label, value, sub) {
+  return `
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:${color}20;color:${color}"><i class="bi ${icon}"></i></div>
+        <div class="kpi-body">
+          <div class="kpi-label">${label}</div>
+          <div class="kpi-value" style="color:${color}">${value}</div>
+          <div class="kpi-sub">${sub}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+loadStakeholder();
+</script>
+{% endblock %}

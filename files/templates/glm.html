@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+{% block title %}GLM — Logistic Regression{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">GLM</li>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+    <div>
+      <h2 class="page-title"><i class="bi bi-graph-up-arrow me-2"></i>GLM — Logistic Regression</h2>
+      <p class="page-subtitle">Interpretable probability model using log-odds; the regulatory gold standard for credit scoring.</p>
+    </div>
+    <div class="view-switch">
+      <button class="btn btn-sm btn-primary active" id="btn-ds-view" onclick="switchView('ds')">
+        <i class="bi bi-cpu me-1"></i>Data Scientist
+      </button>
+      <button class="btn btn-sm btn-outline-success" id="btn-biz-view" onclick="switchView('biz')">
+        <i class="bi bi-people me-1"></i>Stakeholder
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="control-panel mb-4">
+  <div class="row g-3 align-items-end">
+    <div class="col-sm-4 col-lg-2">
+      <label class="form-label">Regularization C</label>
+      <select class="form-select form-select-sm" id="glm-C">
+        <option value="0.01">0.01 (high reg)</option>
+        <option value="0.1">0.1</option>
+        <option value="1.0" selected>1.0 (default)</option>
+        <option value="5.0">5.0</option>
+        <option value="100">100 (low reg)</option>
+      </select>
+    </div>
+    <div class="col-sm-4 col-lg-2">
+      <label class="form-label">Penalty</label>
+      <select class="form-select form-select-sm" id="glm-penalty">
+        <option value="l2" selected>L2 (Ridge)</option>
+        <option value="l1">L1 (Lasso)</option>
+      </select>
+    </div>
+    <div class="col-sm-4 col-lg-2">
+      <label class="form-label">Test Split</label>
+      <select class="form-select form-select-sm" id="glm-split">
+        <option value="0.15">15%</option>
+        <option value="0.20" selected>20%</option>
+        <option value="0.30">30%</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-primary" onclick="runGLM()">
+        <i class="bi bi-play-fill me-1"></i>Train Model
+      </button>
+    </div>
+    <div class="col-auto" id="glm-spinner" style="display:none">
+      <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Metric cards -->
+<div class="row g-3 mb-4" id="glm-metrics"></div>
+
+<!-- Data Scientist View -->
+<div id="view-ds">
+  <div class="row g-4">
+    <div class="col-lg-6"><div class="chart-card"><div id="glm-coef" style="height:400px"></div></div></div>
+    <div class="col-lg-6"><div class="chart-card"><div id="glm-roc" style="height:400px"></div></div></div>
+    <div class="col-lg-6"><div class="chart-card"><div id="glm-cm" style="height:350px"></div></div></div>
+    <div class="col-lg-6"><div class="chart-card"><div id="glm-calib" style="height:350px"></div></div></div>
+    <div class="col-12"><div class="chart-card"><div id="glm-odds" style="height:380px"></div></div></div>
+  </div>
+
+  <div class="insight-box mt-4">
+    <i class="bi bi-lightbulb-fill me-2 text-warning"></i>
+    <strong>Interpretation guide:</strong>
+    An odds ratio &gt; 1 means that feature increases the probability of default/claim.
+    An odds ratio &lt; 1 is protective. Coefficients near zero after regularization indicate less important predictors.
+    <strong>C</strong> controls regularization strength — lower C = more regularization = smaller coefficients.
+  </div>
+</div>
+
+<!-- Stakeholder View -->
+<div id="view-biz" style="display:none">
+  <div class="stakeholder-banner mb-4">
+    <i class="bi bi-info-circle-fill me-2"></i>
+    <strong>What is Logistic Regression?</strong>
+    Think of it as a scorecard — each customer characteristic adds or subtracts points.
+    The total score tells us how likely they are to default or make a large insurance claim.
+    This model is easy to audit and is commonly accepted by regulators.
+  </div>
+  <div class="row g-4">
+    <div class="col-lg-8"><div class="chart-card"><div id="glm-biz-impact" style="height:380px"></div></div></div>
+    <div class="col-lg-4">
+      <div class="chart-card h-100">
+        <h6 class="fw-bold mb-3">🎯 Model Performance Summary</h6>
+        <div id="glm-biz-summary"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let glmResult = null;
+function onDatasetChange(ds) { runGLM(); }
+function switchView(v) {
+  document.getElementById('view-ds').style.display  = v === 'ds'  ? '' : 'none';
+  document.getElementById('view-biz').style.display = v === 'biz' ? '' : 'none';
+  document.getElementById('btn-ds-view').className  = 'btn btn-sm ' + (v==='ds'  ? 'btn-primary active' : 'btn-outline-primary');
+  document.getElementById('btn-biz-view').className = 'btn btn-sm ' + (v==='biz' ? 'btn-success active' : 'btn-outline-success');
+  if (v === 'biz' && glmResult) renderBizView(glmResult);
+}
+
+async function runGLM() {
+  show('glm-spinner');
+  const payload = {
+    dataset: CURRENT_DATASET,
+    C: parseFloat(document.getElementById('glm-C').value),
+    penalty: document.getElementById('glm-penalty').value,
+    test_size: parseFloat(document.getElementById('glm-split').value),
+  };
+  glmResult = await apiPost('/api/model/glm', payload);
+  hide('glm-spinner');
+  renderMetrics('glm-metrics', glmResult.metrics, glmResult.train_size, glmResult.test_size);
+  renderGLMCharts(glmResult);
+}
+
+function renderGLMCharts(r) {
+  // Coefficients
+  const coef = r.coefficients;
+  const sorted = coef.features.map((f,i) => [f, coef.values[i]]).sort((a,b) => a[1]-b[1]);
+  Plotly.newPlot('glm-coef', [{
+    type: 'bar', orientation: 'h',
+    x: sorted.map(d=>d[1]), y: sorted.map(d=>d[0]),
+    marker: { color: sorted.map(d => d[1] > 0 ? '#ef4444' : '#22c55e') },
+    hovertemplate: '<b>%{y}</b><br>Coeff: %{x:.4f}<extra></extra>',
+  }], layout('Log-Odds Coefficients (after regularization)', 'Coefficient', ''), { responsive: true, displayModeBar: false });
+
+  // ROC
+  Plotly.newPlot('glm-roc', [
+    { x: r.roc.fpr, y: r.roc.tpr, mode: 'lines', name: `GLM (AUC=${r.metrics.auc})`, line: { color: '#4f46e5', width: 2.5 } },
+    { x: [0,1], y: [0,1], mode: 'lines', name: 'Random', line: { dash: 'dash', color: '#9ca3af' } },
+  ], layout('ROC Curve', 'False Positive Rate', 'True Positive Rate'), { responsive: true, displayModeBar: false });
+
+  // Confusion matrix
+  plotCM('glm-cm', r.confusion_matrix, CURRENT_DATASET);
+
+  // Calibration
+  const cal = r.calibration;
+  Plotly.newPlot('glm-calib', [
+    { x: cal.mean_prob, y: cal.actual_rate, type: 'scatter', mode: 'lines+markers', name: 'GLM', line: { color: '#4f46e5' },
+      marker: { size: 8 }, hovertemplate: 'Predicted: %{x:.2f}<br>Actual: %{y:.2f}<extra></extra>' },
+    { x: [0,1], y: [0,1], mode: 'lines', name: 'Perfect', line: { dash: 'dash', color: '#22c55e' } },
+  ], layout('Calibration Curve', 'Mean Predicted Probability', 'Actual Positive Rate'), { responsive: true, displayModeBar: false });
+
+  // Odds ratios
+  const feats = coef.features; const ors = Object.values(r.odds_ratios);
+  const sor = feats.map((f,i)=>[f,ors[i]]).sort((a,b)=>b[1]-a[1]);
+  Plotly.newPlot('glm-odds', [{
+    type: 'bar', x: sor.map(d=>d[0]), y: sor.map(d=>d[1]),
+    marker: { color: sor.map(d => d[1] > 1 ? '#ef4444' : '#22c55e') },
+    hovertemplate: '<b>%{x}</b><br>OR: %{y:.3f}<extra></extra>',
+  }], {
+    ...layout('Odds Ratios (OR > 1 = increases risk, OR < 1 = protective)', '', 'Odds Ratio'),
+    shapes: [{ type:'line', x0:-0.5, x1:sor.length-0.5, y0:1, y1:1, line:{ dash:'dash', color:'black' }}],
+  }, { responsive: true, displayModeBar: false });
+}
+
+function renderBizView(r) {
+  // Bar of feature importance (abs coef)
+  const abs = r.coefficients.features.map((f,i) => [f, r.coefficients.abs[i]]).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  Plotly.newPlot('glm-biz-impact', [{
+    type: 'bar', x: abs.map(d=>d[0]), y: abs.map(d=>d[1]),
+    marker: { color: ['#4f46e5','#6366f1','#818cf8','#a5b4fc','#c7d2fe','#e0e7ff'] },
+    text: abs.map(d=>`Impact: ${d[1].toFixed(3)}`), textposition: 'outside',
+  }], {
+    ...layout('Top 6 Most Influential Factors on Risk', 'Factor', 'Influence Strength'),
+    annotations: [{ xref:'paper', yref:'paper', x:0.01, y:1.1, text:'Higher bar = stronger influence on prediction', showarrow: false, font: { size: 11, color: '#6b7280' } }],
+  }, { responsive: true, displayModeBar: false });
+
+  const m = r.metrics;
+  const grade = m.auc >= 0.80 ? '🟢 Excellent' : m.auc >= 0.70 ? '🟡 Good' : '🔴 Needs improvement';
+  document.getElementById('glm-biz-summary').innerHTML = `
+    <div class="biz-metric-row"><span>Model Grade</span><strong>${grade}</strong></div>
+    <div class="biz-metric-row"><span>Correct predictions</span><strong>${(m.accuracy*100).toFixed(1)}%</strong></div>
+    <div class="biz-metric-row"><span>Discrimination (AUC)</span><strong>${(m.auc*100).toFixed(1)}%</strong></div>
+    <div class="biz-metric-row"><span>When it predicts risk, it's right</span><strong>${(m.precision*100).toFixed(1)}%</strong></div>
+    <div class="biz-metric-row"><span>% of actual risks caught</span><strong>${(m.recall*100).toFixed(1)}%</strong></div>
+    <div class="biz-metric-row"><span>Regulatory suitability</span><strong>✅ High</strong></div>
+    <div class="biz-metric-row"><span>Interpretability</span><strong>✅ Full audit trail</strong></div>
+  `;
+}
+
+runGLM();
+</script>
+{% endblock %}

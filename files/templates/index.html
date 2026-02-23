@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% block title %}Home — Banking & Insurance ML Platform{% endblock %}
+
+{% block content %}
+<div class="hero-section text-center py-5">
+  <div class="hero-badge mb-3">🏦 Banking & Insurance · ML Research Platform</div>
+  <h1 class="hero-title">Machine Learning for<br><span class="gradient-text">Financial Risk Analytics</span></h1>
+  <p class="hero-subtitle mt-3 mx-auto">
+    An interactive, end-to-end portfolio demonstrating Generalized Linear Models,
+    Decision Trees, Bagging, and Boosting applied to credit-default and insurance-claim prediction —
+    powered entirely by synthetic data.
+  </p>
+  <div class="d-flex justify-content-center gap-3 mt-4 flex-wrap">
+    <a href="/data-explorer" class="btn btn-primary btn-lg px-4">
+      <i class="bi bi-table me-2"></i>Explore Data
+    </a>
+    <a href="/model-comparison" class="btn btn-outline-primary btn-lg px-4">
+      <i class="bi bi-bar-chart-line-fill me-2"></i>Compare Models
+    </a>
+    <a href="/stakeholder" class="btn btn-outline-success btn-lg px-4">
+      <i class="bi bi-people-fill me-2"></i>Stakeholder View
+    </a>
+  </div>
+</div>
+
+<!-- KPI Cards (live) -->
+<div class="row g-4 px-2 mt-2" id="kpi-row">
+  <div class="col-12"><h5 class="section-heading"><i class="bi bi-speedometer2 me-2"></i>Live Platform Metrics</h5></div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-blue"><i class="bi bi-people-fill"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-label">Banking Records</div>
+        <div class="kpi-value" id="kpi-banking-n">—</div>
+        <div class="kpi-sub">synthetic portfolio</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-purple"><i class="bi bi-shield-check"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-label">Insurance Records</div>
+        <div class="kpi-value" id="kpi-insurance-n">—</div>
+        <div class="kpi-sub">synthetic portfolio</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-orange"><i class="bi bi-exclamation-triangle-fill"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-label">Default Rate</div>
+        <div class="kpi-value" id="kpi-default-rate">—</div>
+        <div class="kpi-sub">banking portfolio</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-green"><i class="bi bi-cpu-fill"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-label">ML Models</div>
+        <div class="kpi-value">4</div>
+        <div class="kpi-sub">GLM · Tree · RF · GBM</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Module cards -->
+<div class="row g-4 px-2 mt-2">
+  <div class="col-12"><h5 class="section-heading"><i class="bi bi-grid-fill me-2"></i>Platform Modules</h5></div>
+
+  {% set modules = [
+    ('/data-explorer', 'bi-table', 'bg-blue', 'Data Explorer',
+     'Visualize distributions, correlations, and target relationships across both datasets.'),
+    ('/glm', 'bi-graph-up-arrow', 'bg-purple', 'GLM — Logistic Regression',
+     'Interpretable log-odds model with coefficient analysis, calibration, and ROC curves.'),
+    ('/decision-tree', 'bi-diagram-3-fill', 'bg-teal', 'Decision Tree',
+     'Interactive single tree with depth-complexity tradeoff, rule extraction, and GINI/Entropy comparison.'),
+    ('/random-forest', 'bi-tree-fill', 'bg-green', 'Random Forest (Bagging)',
+     'Ensemble of decorrelated trees; OOB score, learning curve vs n_estimators, feature importance.'),
+    ('/gradient-boosting', 'bi-lightning-charge-fill', 'bg-orange', 'Gradient Boosting',
+     'Additive boosting with staged-score curves, learning rate tuning, and overfitting diagnostics.'),
+    ('/model-comparison', 'bi-bar-chart-line-fill', 'bg-red', 'Model Comparison',
+     'Side-by-side ROC overlays, metric heatmaps, and business impact analysis across all four model families.'),
+    ('/stakeholder', 'bi-people-fill', 'bg-indigo', 'Stakeholder Dashboard',
+     'Plain-English KPIs, risk segments, and model recommendations — no data science jargon.'),
+  ] %}
+
+  {% for url, icon, bg, title, desc in modules %}
+  <div class="col-md-6 col-xl-4">
+    <a href="{{ url }}" class="module-card text-decoration-none">
+      <div class="module-icon {{ bg }}"><i class="bi {{ icon }}"></i></div>
+      <div class="module-body">
+        <div class="module-title">{{ title }}</div>
+        <div class="module-desc">{{ desc }}</div>
+      </div>
+      <i class="bi bi-arrow-right module-arrow"></i>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Quick model overview -->
+<div class="row g-4 px-2 mt-2 mb-4">
+  <div class="col-12"><h5 class="section-heading"><i class="bi bi-diagram-2-fill me-2"></i>Model Family Overview</h5></div>
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th>Model</th><th>Family</th><th>Key Strength</th><th>Interpretability</th><th>Typical Use Case</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="badge bg-purple">GLM</span> Logistic Regression</td>
+                <td>Linear</td>
+                <td>Odds ratios, regulatory compliance</td>
+                <td><span class="text-success fw-bold">High</span></td>
+                <td>Credit scorecards, regulatory models</td>
+              </tr>
+              <tr>
+                <td><span class="badge bg-teal">Tree</span> Decision Tree</td>
+                <td>Non-linear</td>
+                <td>Visual rule extraction</td>
+                <td><span class="text-success fw-bold">High</span></td>
+                <td>Policy rules, fraud flags</td>
+              </tr>
+              <tr>
+                <td><span class="badge bg-green">RF</span> Random Forest</td>
+                <td>Bagging Ensemble</td>
+                <td>Low variance, robust features</td>
+                <td><span class="text-warning fw-bold">Medium</span></td>
+                <td>Portfolio-level risk scoring</td>
+              </tr>
+              <tr>
+                <td><span class="badge bg-orange">GBM</span> Gradient Boosting</td>
+                <td>Boosting Ensemble</td>
+                <td>High accuracy, bias reduction</td>
+                <td><span class="text-warning fw-bold">Medium</span></td>
+                <td>Pricing models, claim prediction</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Load KPI numbers
+  async function loadKPIs() {
+    const b = await fetch('/api/data/overview?dataset=banking').then(r => r.json());
+    const i = await fetch('/api/data/overview?dataset=insurance').then(r => r.json());
+    document.getElementById('kpi-banking-n').textContent = b.n_rows.toLocaleString();
+    document.getElementById('kpi-insurance-n').textContent = i.n_rows.toLocaleString();
+    document.getElementById('kpi-default-rate').textContent = (b.target_rate * 100).toFixed(1) + '%';
+  }
+  loadKPIs();
+</script>
+{% endblock %}

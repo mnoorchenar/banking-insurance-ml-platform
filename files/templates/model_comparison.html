@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% block title %}Model Comparison{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Model Comparison</li>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2 class="page-title"><i class="bi bi-bar-chart-line-fill me-2"></i>Model Comparison</h2>
+  <p class="page-subtitle">Side-by-side comparison of all four model families — ROC curves, metrics heatmap, and business impact.</p>
+</div>
+
+<div class="control-panel mb-4">
+  <div class="row g-3 align-items-end">
+    <div class="col-sm-4 col-lg-2">
+      <label class="form-label">Test Split</label>
+      <select class="form-select form-select-sm" id="cmp-split">
+        <option value="0.15">15%</option><option value="0.20" selected>20%</option><option value="0.30">30%</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-primary" onclick="runComparison()">
+        <i class="bi bi-play-fill me-1"></i>Run All Models
+      </button>
+    </div>
+    <div class="col-auto" id="cmp-spinner" style="display:none">
+      <div class="spinner-border spinner-border-sm text-primary"></div>
+      <span class="ms-2 small text-muted">Training 4 models…</span>
+    </div>
+  </div>
+</div>
+
+<!-- Metric summary table -->
+<div class="chart-card mb-4" id="cmp-table-card" style="display:none">
+  <h6 class="fw-bold mb-3">📊 Performance Metrics — All Models</h6>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" id="cmp-table">
+      <thead class="table-dark">
+        <tr>
+          <th>Model</th><th>Family</th><th>Accuracy</th><th>AUC-ROC</th>
+          <th>F1 Score</th><th>Precision</th><th>Recall</th><th>Best For</th>
+        </tr>
+      </thead>
+      <tbody id="cmp-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8"><div class="chart-card"><div id="cmp-roc" style="height:440px"></div></div></div>
+  <div class="col-lg-4"><div class="chart-card"><div id="cmp-radar" style="height:440px"></div></div></div>
+  <div class="col-lg-6"><div class="chart-card"><div id="cmp-bar" style="height:380px"></div></div></div>
+  <div class="col-lg-6"><div class="chart-card"><div id="cmp-heatmap" style="height:380px"></div></div></div>
+</div>
+
+<!-- Recommendation panel -->
+<div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="chart-card">
+      <h6 class="fw-bold mb-3">🏆 Model Selection Guidance</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr><th>Scenario</th><th>Recommended Model</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Regulatory / IFRS 9 compliance</td><td><span class="badge bg-purple">GLM</span> Logistic Regression</td><td>Fully interpretable; auditable coefficients; odds-ratio reporting</td></tr>
+            <tr><td>Policy rule extraction</td><td><span class="badge bg-teal">Tree</span> Decision Tree</td><td>Human-readable if-then rules for risk committees</td></tr>
+            <tr><td>Stable production scoring</td><td><span class="badge bg-green">RF</span> Random Forest</td><td>Low variance; OOB validation; robust to outliers</td></tr>
+            <tr><td>Maximum predictive accuracy</td><td><span class="badge bg-orange">GBM</span> Gradient Boosting</td><td>Typically highest AUC; corrects systematic errors sequentially</td></tr>
+            <tr><td>Small dataset (&lt;1 k rows)</td><td><span class="badge bg-purple">GLM</span> Logistic Regression</td><td>Stable with fewer observations; less overfitting risk</td></tr>
+            <tr><td>Explainability to clients</td><td><span class="badge bg-teal">Tree</span> Decision Tree</td><td>Flowchart-style explanation any client can follow</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MODEL_COLORS = { 'GLM':'#4f46e5','Decision Tree':'#f97316','Random Forest':'#16a34a','Gradient Boosting':'#f59e0b' };
+const MODEL_FAMILY = { 'GLM':'Linear','Decision Tree':'Non-linear','Random Forest':'Bagging','Gradient Boosting':'Boosting' };
+const MODEL_BEST   = { 'GLM':'Regulatory / Interpretable','Decision Tree':'Rule extraction','Random Forest':'Stable production','Gradient Boosting':'Max accuracy' };
+
+function onDatasetChange() { runComparison(); }
+
+async function runComparison() {
+  show('cmp-spinner');
+  const r = await apiPost('/api/model/compare', {
+    dataset: CURRENT_DATASET,
+    test_size: parseFloat(document.getElementById('cmp-split').value),
+  });
+  hide('cmp-spinner');
+  renderComparison(r);
+}
+
+function renderComparison(r) {
+  document.getElementById('cmp-table-card').style.display = '';
+  const metrics = ['accuracy','auc','f1','precision','recall'];
+  const names = r.model_names;
+
+  // Table
+  const tbody = document.getElementById('cmp-tbody');
+  // Find best per metric
+  const bests = {};
+  metrics.forEach(m => {
+    bests[m] = Math.max(...names.map(n => r.metrics[n][m]));
+  });
+  tbody.innerHTML = names.map(name => {
+    const m = r.metrics[name];
+    return `<tr>
+      <td><strong>${name}</strong></td>
+      <td><span class="badge" style="background:${MODEL_COLORS[name]}">${MODEL_FAMILY[name]}</span></td>
+      ${metrics.map(k => `<td class="${m[k] === bests[k] ? 'text-success fw-bold' : ''}">${(m[k]*100).toFixed(2)}%</td>`).join('')}
+      <td><small>${MODEL_BEST[name]}</small></td>
+    </tr>`;
+  }).join('');
+
+  // ROC overlay
+  const rocTraces = names.map(name => ({
+    x: r.roc_data[name].fpr, y: r.roc_data[name].tpr,
+    mode: 'lines', name: `${name} (${(r.metrics[name].auc*100).toFixed(1)}%)`,
+    line: { color: MODEL_COLORS[name], width: 2.5 },
+  }));
+  rocTraces.push({ x:[0,1],y:[0,1],mode:'lines',name:'Random',line:{dash:'dash',color:'#9ca3af'} });
+  Plotly.newPlot('cmp-roc', rocTraces, layout('ROC Curves — All Models','FPR','TPR'), {responsive:true,displayModeBar:false});
+
+  // Bar chart - AUC
+  Plotly.newPlot('cmp-bar', [{
+    type:'bar', x: names, y: names.map(n=>r.metrics[n].auc),
+    marker:{ color: names.map(n=>MODEL_COLORS[n]) },
+    text: names.map(n=>`${(r.metrics[n].auc*100).toFixed(2)}%`), textposition:'outside',
+    hovertemplate:'<b>%{x}</b><br>AUC: %{y:.4f}<extra></extra>',
+  }], {
+    ...layout('AUC-ROC by Model Family','','AUC-ROC'),
+    yaxis:{ range:[Math.min(...names.map(n=>r.metrics[n].auc))-0.03, 1.0] },
+  }, {responsive:true,displayModeBar:false});
+
+  // Heatmap of all metrics
+  const metricLabels = ['Accuracy','AUC','F1','Precision','Recall'];
+  const zData = metrics.map(k => names.map(n => r.metrics[n][k]));
+  Plotly.newPlot('cmp-heatmap', [{
+    type:'heatmap', z: zData, x: names, y: metricLabels,
+    colorscale:'Blues', showscale:true,
+    text: zData.map(row => row.map(v=>(v*100).toFixed(1)+'%')),
+    texttemplate:'%{text}', hovertemplate:'%{y}<br>%{x}<br>%{text}<extra></extra>',
+  }], {
+    title:{ text:'Metric Heatmap (all models)', font:{size:14} },
+    paper_bgcolor:'transparent', margin:{t:50,l:90,r:40,b:80},
+  }, {responsive:true,displayModeBar:false});
+
+  // Radar chart
+  const theta = ['Accuracy','AUC','F1','Precision','Recall','Accuracy']; // repeat first to close
+  const radarTraces = names.map(name => ({
+    type:'scatterpolar', mode:'lines+markers',
+    r: [r.metrics[name].accuracy, r.metrics[name].auc, r.metrics[name].f1,
+        r.metrics[name].precision, r.metrics[name].recall, r.metrics[name].accuracy],
+    theta, name, line:{color:MODEL_COLORS[name]}, fill:'toself', fillcolor:MODEL_COLORS[name]+'22',
+  }));
+  Plotly.newPlot('cmp-radar', radarTraces, {
+    polar:{ radialaxis:{ visible:true, range:[Math.min(...names.flatMap(n=>Object.values(r.metrics[n])))-0.05, 1] } },
+    title:{ text:'Radar — Model Profiles', font:{size:14} },
+    paper_bgcolor:'transparent', legend:{ orientation:'h', y:-0.12 },
+    margin:{t:60,l:40,r:40,b:60},
+  }, {responsive:true,displayModeBar:false});
+}
+
+runComparison();
+</script>
+{% endblock %}

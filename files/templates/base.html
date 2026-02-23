@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Banking & Insurance ML Platform{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav id="sidebar" class="sidebar d-flex flex-column">
+  <div class="sidebar-brand">
+    <span class="brand-icon">🏦</span>
+    <span class="brand-text">ML Platform</span>
+  </div>
+
+  <div class="sidebar-section-label">Analytics</div>
+  <a href="/" class="sidebar-link {% if request.path == '/' %}active{% endif %}">
+    <i class="bi bi-house-fill"></i><span>Home</span>
+  </a>
+  <a href="/data-explorer" class="sidebar-link {% if request.path == '/data-explorer' %}active{% endif %}">
+    <i class="bi bi-table"></i><span>Data Explorer</span>
+  </a>
+
+  <div class="sidebar-section-label mt-2">Models</div>
+  <a href="/glm" class="sidebar-link {% if request.path == '/glm' %}active{% endif %}">
+    <i class="bi bi-graph-up-arrow"></i><span>GLM / Logistic Reg.</span>
+  </a>
+  <a href="/decision-tree" class="sidebar-link {% if request.path == '/decision-tree' %}active{% endif %}">
+    <i class="bi bi-diagram-3-fill"></i><span>Decision Tree</span>
+  </a>
+  <a href="/random-forest" class="sidebar-link {% if request.path == '/random-forest' %}active{% endif %}">
+    <i class="bi bi-tree-fill"></i><span>Random Forest</span>
+  </a>
+  <a href="/gradient-boosting" class="sidebar-link {% if request.path == '/gradient-boosting' %}active{% endif %}">
+    <i class="bi bi-lightning-charge-fill"></i><span>Gradient Boosting</span>
+  </a>
+
+  <div class="sidebar-section-label mt-2">Reports</div>
+  <a href="/model-comparison" class="sidebar-link {% if request.path == '/model-comparison' %}active{% endif %}">
+    <i class="bi bi-bar-chart-line-fill"></i><span>Model Comparison</span>
+  </a>
+  <a href="/stakeholder" class="sidebar-link {% if request.path == '/stakeholder' %}active{% endif %}">
+    <i class="bi bi-people-fill"></i><span>Stakeholder View</span>
+  </a>
+
+  <div class="sidebar-footer mt-auto">
+    <span class="badge bg-success">Synthetic Data Only</span>
+    <div class="mt-1 text-muted small">Educational Use</div>
+  </div>
+</nav>
+
+<!-- Main content -->
+<div id="main-content" class="main-content">
+  <!-- Top bar -->
+  <div class="topbar d-flex align-items-center justify-content-between px-4">
+    <div class="d-flex align-items-center gap-3">
+      <button class="btn btn-sm btn-outline-secondary sidebar-toggle" onclick="toggleSidebar()">
+        <i class="bi bi-list"></i>
+      </button>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item"><a href="/">Home</a></li>
+          {% block breadcrumb %}{% endblock %}
+        </ol>
+      </nav>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <!-- Dataset toggle -->
+      <div class="dataset-switch d-flex align-items-center gap-2">
+        <label class="form-label mb-0 fw-semibold small text-muted">Dataset:</label>
+        <div class="btn-group btn-group-sm" id="global-dataset-toggle">
+          <button class="btn btn-primary active" data-ds="banking" onclick="setDataset('banking', this)">
+            <i class="bi bi-bank"></i> Banking
+          </button>
+          <button class="btn btn-outline-primary" data-ds="insurance" onclick="setDataset('insurance', this)">
+            <i class="bi bi-shield-check"></i> Insurance
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page body -->
+  <div class="page-body">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.1/plotly.min.js"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+  // Global dataset state
+  let CURRENT_DATASET = localStorage.getItem('ml_dataset') || 'banking';
+
+  function setDataset(ds, btn) {
+    CURRENT_DATASET = ds;
+    localStorage.setItem('ml_dataset', ds);
+    document.querySelectorAll('#global-dataset-toggle .btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.ds === ds);
+      b.classList.toggle('btn-primary', b.dataset.ds === ds);
+      b.classList.toggle('btn-outline-primary', b.dataset.ds !== ds);
+    });
+    if (typeof onDatasetChange === 'function') onDatasetChange(ds);
+  }
+
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+    document.getElementById('main-content').classList.toggle('expanded');
+  }
+
+  // Restore dataset selection
+  document.addEventListener('DOMContentLoaded', () => {
+    setDataset(CURRENT_DATASET, document.querySelector(`[data-ds="${CURRENT_DATASET}"]`));
+  });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
