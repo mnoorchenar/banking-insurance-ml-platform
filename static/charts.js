@@ -1,133 +1,394 @@
-/* ═══════════════════════════════════════════════════════════════
-   Banking & Insurance ML Platform — Shared JS
-   ═══════════════════════════════════════════════════════════════ */
+// ─────────────────────────────────────────────
+// PLOTLY DEFAULTS
+// ─────────────────────────────────────────────
+const COLORS = ['#3b82f6','#22c55e','#f59e0b','#a78bfa','#22d3ee','#fb7185','#94a3b8'];
 
-// ── API helpers ─────────────────────────────────────────────────
+const LAYOUT_BASE = {
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor:  'rgba(0,0,0,0)',
+  font:   { color: '#94a3b8', size: 11 },
+  margin: { t: 20, b: 40, l: 50, r: 20 },
+  legend: { bgcolor: 'rgba(0,0,0,0)', bordercolor: '#334155', borderwidth: 1 },
+  xaxis:  { gridcolor: '#1e293b', zerolinecolor: '#334155' },
+  yaxis:  { gridcolor: '#1e293b', zerolinecolor: '#334155' },
+};
 
-async function apiFetch(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`API error: ${r.status}`);
-  return r.json();
+function layout(extra = {}) {
+  return Object.assign({}, LAYOUT_BASE, extra);
 }
 
-async function apiPost(url, body) {
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+function plt(id, data, l) {
+  Plotly.newPlot(id, data, l, { responsive: true, displayModeBar: false });
+}
+
+// ─────────────────────────────────────────────
+// NAV
+// ─────────────────────────────────────────────
+function show(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.currentTarget.classList.add('active');
+  renderPage(page);
+}
+
+// ─────────────────────────────────────────────
+// OVERVIEW
+// ─────────────────────────────────────────────
+function renderOverview() {
+  const models  = ['Decision Tree','Bagging (RF)','AdaBoost','Gradient Boosting','Logistic (GLM)'];
+  const cr_aucs = models.map(m => CR[m]  ? CR[m].auc  : null);
+  const ch_aucs = models.map(m => CHN[m] ? CHN[m].auc : null);
+
+  plt('ov-radar', [
+    { type:'scatterpolar', r:cr_aucs, theta:models, fill:'toself',
+      name:'Credit Risk', line:{color:'#3b82f6'} },
+    { type:'scatterpolar', r:ch_aucs, theta:models, fill:'toself',
+      name:'Churn',       line:{color:'#22c55e'} },
+  ], layout({
+    polar: {
+      bgcolor: 'rgba(0,0,0,0)',
+      radialaxis: { visible:true, range:[0.5,1], gridcolor:'#334155', color:'#64748b' },
+      angularaxis: { gridcolor:'#334155', color:'#64748b' },
+    }
+  }));
+
+  plt('ov-bar', [
+    { type:'bar',
+      x: ['Credit Risk','Insurance','Churn','Fraud'],
+      y: [
+        CR._meta.n_train  + CR._meta.n_test,
+        INS._meta.n_train + INS._meta.n_test,
+        CHN._meta.n_train + CHN._meta.n_test,
+        FRD._meta.n_test  * 4,
+      ],
+      marker: { color: COLORS },
+      text: ['2500','2500','2500','3000'],
+      textposition: 'outside',
+    }
+  ], layout({ showlegend:false, yaxis:{ title:'Records' } }));
+}
+
+// ─────────────────────────────────────────────
+// CREDIT RISK
+// ─────────────────────────────────────────────
+function renderCredit() {
+  const ORDER = ['Decision Tree','Bagging (RF)','AdaBoost','Gradient Boosting',
+                 'Logistic (GLM)','GLM (statsmodels)'];
+  const BADGE = ['badge-dt','badge-rf','badge-ab','badge-gb','badge-lr','badge-glm'];
+
+  const kpis = document.getElementById('cr-kpis');
+  kpis.innerHTML = '';
+  ORDER.forEach((m, i) => {
+    const d = CR[m]; if (!d) return;
+    kpis.innerHTML += `<div class="col-6 col-lg-2">
+      <div class="kpi-card text-center">
+        <span class="model-badge ${BADGE[i]}">${m.split(' ')[0]}</span>
+        <div class="kpi-val mt-1">${d.auc}</div>
+        <div class="kpi-label">AUC</div>
+        <div style="font-size:.75rem;color:#64748b;">Acc ${(d.accuracy*100).toFixed(1)}%</div>
+      </div></div>`;
   });
-  if (!r.ok) throw new Error(`API error: ${r.status}`);
-  return r.json();
+
+  // ROC
+  const rocTraces = ORDER.map((m, i) => {
+    const d = CR[m]; if (!d) return null;
+    return { x:d.fpr, y:d.tpr, mode:'lines', name:`${m} (${d.auc})`,
+             line:{ color:COLORS[i], width:2 } };
+  }).filter(Boolean);
+  rocTraces.push({ x:[0,1], y:[0,1], mode:'lines', name:'Random',
+                   line:{ color:'#475569', dash:'dash', width:1 } });
+  plt('cr-roc', rocTraces, layout({
+    xaxis:{ title:'False Positive Rate' }, yaxis:{ title:'True Positive Rate' }
+  }));
+
+  // Importance (GBM)
+  const imp = CR['Gradient Boosting'].feat_imp;
+  plt('cr-imp', [{
+    type:'bar', orientation:'h',
+    x: imp.map(d => d.importance),
+    y: imp.map(d => d.feature),
+    marker:{ color:'#f59e0b' }
+  }], layout({ margin:{l:130,r:20,t:10,b:30}, showlegend:false,
+               yaxis:{ autorange:'reversed' } }));
+
+  // Confusion matrix
+  const cm = CR['Gradient Boosting'].cm;
+  plt('cr-cm', [{
+    type:'heatmap', z:cm,
+    x:['Pred 0','Pred 1'], y:['Act 0','Act 1'],
+    colorscale:[[0,'#1e293b'],[1,'#2563eb']],
+    text: cm.map(r => r.map(v => v.toString())),
+    texttemplate:'%{text}', showscale:false,
+  }], layout({ margin:{t:10,b:60,l:70,r:20} }));
+
+  // GLM Coefficients
+  const glm = CR['GLM (statsmodels)'];
+  if (glm && glm.coef) {
+    const entries = Object.entries(glm.coef).filter(([k]) => k !== 'const');
+    const sorted  = entries.sort((a, b) => b[1] - a[1]);
+    plt('cr-coef', [{
+      type:'bar', orientation:'h',
+      x: sorted.map(d => d[1]),
+      y: sorted.map(d => d[0]),
+      marker:{ color: sorted.map(d => d[1] > 0 ? '#ef4444' : '#22c55e') }
+    }], layout({ margin:{l:130,r:20,t:10,b:30}, showlegend:false,
+                 yaxis:{ autorange:'reversed' } }));
+  }
+
+  document.getElementById('cr-rules').textContent =
+    CR['Decision Tree'].tree_rules || 'No rules available';
 }
 
-// ── DOM helpers ─────────────────────────────────────────────────
-function show(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
-function hide(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+// ─────────────────────────────────────────────
+// INSURANCE
+// ─────────────────────────────────────────────
+let insModels = [];
 
-// ── Plotly layout factory ────────────────────────────────────────
+function renderInsurance() {
+  const ORDER = ['Decision Tree','Random Forest','Gradient Boosting',
+                 'Tweedie GLM','GLM Gamma (statsmodels)'];
+  const COLS  = ['text-primary','text-success','text-warning','text-info','text-danger'];
 
-function layout(title, xLabel, yLabel, extra = {}) {
-  return {
-    title:   { text: title, font: { size: 14, color: '#1e293b' }, x: 0 },
-    xaxis:   { title: xLabel, color: '#64748b', gridcolor: '#f1f5f9' },
-    yaxis:   { title: yLabel, color: '#64748b', gridcolor: '#f1f5f9' },
-    paper_bgcolor: 'transparent',
-    plot_bgcolor:  'rgba(0,0,0,0)',
-    font:    { family: 'Inter, system-ui, sans-serif', size: 12, color: '#374151' },
-    legend:  { orientation: 'h', y: -0.15, font: { size: 11 } },
-    margin:  { t: 50, l: 60, r: 20, b: 70 },
-    hoverlabel: { bgcolor: '#1e293b', font: { color: '#fff', size: 12 } },
-    ...extra,
-  };
+  const kpis = document.getElementById('ins-kpis');
+  kpis.innerHTML = '';
+  insModels = [];
+  ORDER.forEach((m, i) => {
+    const d = INS[m]; if (!d) return;
+    insModels.push(m);
+    kpis.innerHTML += `<div class="col-6 col-lg-2">
+      <div class="kpi-card text-center">
+        <span class="${COLS[i]} fw-bold" style="font-size:.78rem;">${m}</span>
+        <div class="kpi-val mt-1" style="font-size:1.4rem;">${d.r2.toFixed(3)}</div>
+        <div class="kpi-label">R²</div>
+        <div style="font-size:.75rem;color:#64748b;">RMSE ${d.rmse}</div>
+      </div></div>`;
+  });
+
+  const sel = document.getElementById('ins-model-sel');
+  sel.innerHTML = insModels.map(m => `<option value="${m}">${m}</option>`).join('');
+  sel.onchange = () => renderInsScatter(sel.value);
+  renderInsScatter(insModels[2] || insModels[0]);
+
+  // Feature importance
+  const imp = INS['Gradient Boosting'].feat_imp;
+  plt('ins-imp', [{
+    type:'bar', orientation:'h',
+    x: imp.map(d => d.importance),
+    y: imp.map(d => d.feature),
+    marker:{ color:'#f59e0b' }
+  }], layout({ margin:{l:140,r:20,t:10,b:30}, showlegend:false,
+               yaxis:{ autorange:'reversed' } }));
+
+  // Metrics comparison
+  const maxRMSE = Math.max(...insModels.map(n => INS[n].rmse));
+  const maxMAE  = Math.max(...insModels.map(n => INS[n].mae));
+  plt('ins-compare', insModels.map((m, i) => ({
+    type:'bar', name:m,
+    x: ['R²','RMSE (norm)','MAE (norm)'],
+    y: [INS[m].r2, INS[m].rmse / maxRMSE, INS[m].mae / maxMAE],
+    marker:{ color: COLORS[i] }
+  })), layout({ barmode:'group', yaxis:{ title:'Score (normalised for RMSE/MAE)' } }));
 }
 
-// ── Metric cards renderer ────────────────────────────────────────
-
-function renderMetrics(containerId, metrics, trainSize, testSize) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-
-  const items = [
-    { label: 'Accuracy',    value: (metrics.accuracy  * 100).toFixed(2) + '%', color: '#4f46e5' },
-    { label: 'AUC-ROC',     value: (metrics.auc       * 100).toFixed(2) + '%', color: '#7c3aed' },
-    { label: 'F1 Score',    value: (metrics.f1         * 100).toFixed(2) + '%', color: '#16a34a' },
-    { label: 'Precision',   value: (metrics.precision  * 100).toFixed(2) + '%', color: '#f97316' },
-    { label: 'Recall',      value: (metrics.recall     * 100).toFixed(2) + '%', color: '#0d9488' },
-    { label: 'Train / Test',value: `${trainSize} / ${testSize}`,                color: '#6b7280' },
-  ];
-
-  container.innerHTML = items.map(({ label, value, color }) => `
-    <div class="col-6 col-sm-4 col-lg-2">
-      <div class="metric-item">
-        <div class="label">${label}</div>
-        <div class="value" style="color:${color}">${value}</div>
-      </div>
-    </div>
-  `).join('');
+function renderInsScatter(model) {
+  const d = INS[model];
+  const allVals = [...d.actual_sample, ...d.pred_sample];
+  const mn = Math.min(...allVals), mx = Math.max(...allVals);
+  plt('ins-scatter', [
+    { type:'scatter', mode:'markers', x:d.actual_sample, y:d.pred_sample,
+      marker:{ color:'#3b82f6', opacity:.5, size:5 }, name:'Data' },
+    { type:'scatter', mode:'lines', x:[mn,mx], y:[mn,mx],
+      line:{ color:'#ef4444', dash:'dash' }, name:'Perfect fit' },
+  ], layout({ xaxis:{ title:'Actual Premium' }, yaxis:{ title:'Predicted Premium' } }));
 }
 
-// ── KPI card helper ──────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// CHURN
+// ─────────────────────────────────────────────
+function renderChurn() {
+  const ORDER = ['Decision Tree','Bagging (RF)','AdaBoost','Gradient Boosting',
+                 'Logistic (GLM)','GLM (statsmodels)'];
+  const BADGE = ['badge-dt','badge-rf','badge-ab','badge-gb','badge-lr','badge-glm'];
 
-function kpiCard(icon, bg, label, value, sub) {
-  return `
-    <div class="col-6 col-xl-3">
-      <div class="kpi-card">
-        <div class="kpi-icon ${bg}"><i class="bi ${icon}"></i></div>
-        <div class="kpi-body">
-          <div class="kpi-label">${label}</div>
-          <div class="kpi-value">${value}</div>
-          <div class="kpi-sub">${sub}</div>
-        </div>
-      </div>
-    </div>`;
+  const kpis = document.getElementById('chn-kpis');
+  kpis.innerHTML = '';
+  ORDER.forEach((m, i) => {
+    const d = CHN[m]; if (!d) return;
+    kpis.innerHTML += `<div class="col-6 col-lg-2">
+      <div class="kpi-card text-center">
+        <span class="model-badge ${BADGE[i]}">${m.split(' ')[0]}</span>
+        <div class="kpi-val mt-1">${d.auc}</div>
+        <div class="kpi-label">AUC</div>
+      </div></div>`;
+  });
+
+  // ROC
+  const rocTraces = ORDER.map((m, i) => {
+    const d = CHN[m]; if (!d) return null;
+    return { x:d.fpr, y:d.tpr, mode:'lines', name:`${m} (${d.auc})`,
+             line:{ color:COLORS[i], width:2 } };
+  }).filter(Boolean);
+  rocTraces.push({ x:[0,1], y:[0,1], mode:'lines', name:'Random',
+                   line:{ color:'#475569', dash:'dash', width:1 } });
+  plt('chn-roc', rocTraces, layout({
+    xaxis:{ title:'FPR' }, yaxis:{ title:'TPR' }
+  }));
+
+  // Importance
+  const imp = CHN['Gradient Boosting'].feat_imp;
+  plt('chn-imp', [{
+    type:'bar', orientation:'h',
+    x: imp.map(d => d.importance),
+    y: imp.map(d => d.feature),
+    marker:{ color:'#a78bfa' }
+  }], layout({ margin:{l:140,r:20,t:10,b:30}, showlegend:false,
+               yaxis:{ autorange:'reversed' } }));
+
+  // Satisfaction bins
+  plt('chn-sat', [{
+    type:'bar', x:CHN_SAT_X, y:CHN_SAT_Y,
+    marker:{ color: CHN_SAT_Y.map(v => v>0.3?'#ef4444':v>0.2?'#f59e0b':'#22c55e') }
+  }], layout({ xaxis:{ title:'Satisfaction Score Bin' }, yaxis:{ title:'Churn Rate' }, showlegend:false }));
+
+  // Tenure bins
+  plt('chn-tenure', [{
+    type:'bar', x:CHN_TEN_X, y:CHN_TEN_Y,
+    marker:{ color:'#6366f1' }
+  }], layout({ xaxis:{ title:'Tenure Band (months)' }, yaxis:{ title:'Churn Rate' }, showlegend:false }));
 }
 
-// ── Confusion matrix renderer ────────────────────────────────────
+// ─────────────────────────────────────────────
+// FRAUD
+// ─────────────────────────────────────────────
+function renderFraud() {
+  const s = FRD.scatter;
+  const fi = s.label.map((v, i) => v===1 ? i : -1).filter(i => i >= 0);
+  const li = s.label.map((v, i) => v===0 ? i : -1).filter(i => i >= 0);
 
-function plotCM(divId, cm, dataset) {
-  const isBank   = dataset === 'banking';
-  const labels   = isBank ? ['No Default', 'Default'] : ['Low Claim', 'High Claim'];
-  const z        = cm;
-  const total    = z.flat().reduce((a, b) => a + b, 0);
-  const zText    = z.map(row => row.map(v => `${v}<br>${(v / total * 100).toFixed(1)}%`));
+  plt('frd-scatter', [
+    { type:'scatter', mode:'markers', name:'Legitimate',
+      x: li.map(i => s.amount[i]),   y: li.map(i => s.velocity[i]),
+      marker:{ color:'#3b82f6', opacity:.4, size:5 } },
+    { type:'scatter', mode:'markers', name:'Fraud',
+      x: fi.map(i => s.amount[i]),   y: fi.map(i => s.velocity[i]),
+      marker:{ color:'#ef4444', opacity:.8, size:7, symbol:'x' } },
+  ], layout({ xaxis:{ title:'Amount ($)', type:'log' }, yaxis:{ title:'Velocity (tx/hr)' } }));
 
-  Plotly.newPlot(divId, [{
-    type: 'heatmap',
-    z: z, x: labels.map(l => 'Pred: ' + l), y: labels.map(l => 'Actual: ' + l),
-    colorscale: 'Blues', showscale: false,
-    text: zText, texttemplate: '%{text}',
-    hovertemplate: 'Actual: %{y}<br>Predicted: %{x}<br>Count: %{z}<extra></extra>',
-  }], {
-    title: { text: 'Confusion Matrix', font: { size: 14 }, x: 0 },
-    paper_bgcolor: 'transparent', plot_bgcolor: 'rgba(0,0,0,0)',
-    margin: { t: 50, l: 90, r: 20, b: 70 },
-    annotations: [
-      { x: 0, y: 0, text: 'TN', showarrow: false, font: { size: 10, color: '#6b7280' } },
-      { x: 1, y: 0, text: 'FP', showarrow: false, font: { size: 10, color: '#6b7280' } },
-      { x: 0, y: 1, text: 'FN', showarrow: false, font: { size: 10, color: '#6b7280' } },
-      { x: 1, y: 1, text: 'TP', showarrow: false, font: { size: 10, color: '#6b7280' } },
-    ],
-  }, { responsive: true, displayModeBar: false });
+  plt('frd-roc', [
+    { x:FRD.decision_tree.fpr,    y:FRD.decision_tree.tpr,    mode:'lines',
+      name:`DT (${FRD.decision_tree.auc})`,     line:{ color:'#60a5fa' } },
+    { x:FRD.gradient_boosting.fpr, y:FRD.gradient_boosting.tpr, mode:'lines',
+      name:`GBM (${FRD.gradient_boosting.auc})`, line:{ color:'#22c55e', width:2 } },
+    { x:[0,1], y:[0,1], mode:'lines', name:'Random', line:{ color:'#475569', dash:'dash', width:1 } },
+  ], layout({ xaxis:{ title:'FPR' }, yaxis:{ title:'TPR' } }));
+
+  const imp = FRD.gradient_boosting.feat_imp;
+  plt('frd-imp', [{
+    type:'bar', orientation:'h',
+    x: imp.map(d => d.importance),
+    y: imp.map(d => d.feature),
+    marker:{ color:'#f59e0b' }
+  }], layout({ margin:{l:120,r:20,t:10,b:30}, showlegend:false,
+               yaxis:{ autorange:'reversed' } }));
+
+  document.getElementById('frd-rules').textContent = FRD.decision_tree.tree_rules;
 }
 
-// ── Heatmap (correlation) ────────────────────────────────────────
+// ─────────────────────────────────────────────
+// MODEL COMPARISON
+// ─────────────────────────────────────────────
+function renderCompare() {
+  const models = ['Decision Tree','Bagging (RF)','AdaBoost','Gradient Boosting','Logistic (GLM)'];
+  const tasks  = ['Credit Risk','Churn'];
+  const data   = [CR, CHN];
 
-function plotHeatmap(divId, matrix, labels, title) {
-  Plotly.newPlot(divId, [{
-    type: 'heatmap', z: matrix, x: labels, y: labels,
-    colorscale: [
-      [0, '#b91c1c'], [0.25, '#fca5a5'], [0.5, '#f9fafb'],
-      [0.75, '#93c5fd'], [1, '#1d4ed8'],
-    ],
-    zmin: -1, zmax: 1, showscale: true,
-    text: matrix.map(row => row.map(v => v.toFixed(2))),
-    texttemplate: '%{text}',
-    hovertemplate: '%{y} × %{x}<br>r = %{z:.3f}<extra></extra>',
-  }], {
-    title: { text: title, font: { size: 14 }, x: 0 },
-    paper_bgcolor: 'transparent', plot_bgcolor: 'rgba(0,0,0,0)',
-    margin: { t: 50, l: 120, r: 60, b: 120 },
-    xaxis: { tickangle: -35, color: '#374151' },
-    yaxis: { color: '#374151' },
-  }, { responsive: true, displayModeBar: false });
+  const z = models.map(m => data.map(d => d[m] ? d[m].auc : null));
+  plt('cmp-auc', [{
+    type:'heatmap', z, x:tasks, y:models,
+    colorscale: [[0,'#1e293b'],[0.5,'#2563eb'],[1,'#22c55e']],
+    text: z.map(r => r.map(v => v ? v.toString() : '')),
+    texttemplate:'%{text}', zmin:0.5, zmax:1.0,
+  }], layout({ margin:{l:160,r:20,t:20,b:60} }));
+
+  plt('cmp-acc', models.map((m, i) => ({
+    type:'bar', name:m, x:tasks,
+    y: data.map(d => d[m] ? d[m].accuracy : 0),
+    marker:{ color: COLORS[i] }
+  })), layout({ barmode:'group', yaxis:{ title:'Accuracy' } }));
+
+  plt('cmp-f1', models.map((m, i) => ({
+    type:'bar', name:m, x:tasks,
+    y: data.map(d => d[m] ? d[m].f1 : 0),
+    marker:{ color: COLORS[i] }
+  })), layout({ barmode:'group', yaxis:{ title:'F1 Score' } }));
+}
+
+// ─────────────────────────────────────────────
+// DATA EXPLORER
+// ─────────────────────────────────────────────
+let currentKey = 'credit';
+
+function renderData() {
+  currentKey = document.getElementById('data-sel').value;
+  const rows = FULL[currentKey];
+  if (!rows || !rows.length) return;
+  const cols = Object.keys(rows[0]);
+  const tbl  = document.getElementById('data-table');
+  tbl.innerHTML = `<thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${
+      typeof r[c]==='number' ? (Number.isInteger(r[c]) ? r[c] : r[c].toFixed(3)) : r[c]
+    }</td>`).join('')}</tr>`).join('')}</tbody>`;
+
+  const sel = document.getElementById('dist-feat-sel');
+  sel.innerHTML = cols.map(c => `<option value="${c}">${c}</option>`).join('');
+  renderDist();
+}
+
+function renderDist() {
+  const feat = document.getElementById('dist-feat-sel').value;
+  const dist = DIST[currentKey];
+  if (!dist || !dist[feat]) return;
+
+  plt('data-dist', [{
+    type:'histogram', x:dist[feat],
+    marker:{ color:'#3b82f6', opacity:.8 }, nbinsx:30
+  }], layout({ xaxis:{ title:feat }, yaxis:{ title:'Count' }, showlegend:false }));
+
+  const targets = { credit:'default', insurance:'premium', churn:'churned', fraud:'is_fraud' };
+  const tgt = targets[currentKey];
+  const vals = dist[feat];
+  if (dist[tgt] && feat !== tgt) {
+    const bins = 5, mn = Math.min(...vals), mx = Math.max(...vals), step = (mx-mn)/bins;
+    const bx=[], by=[];
+    for (let i=0; i<bins; i++) {
+      const lo=mn+i*step, hi=mn+(i+1)*step;
+      const idx = vals.map((v,j)=>v>=lo&&v<hi?j:-1).filter(j=>j>=0);
+      if (!idx.length) continue;
+      const rate = idx.reduce((s,j)=>s+(dist[tgt][j]||0),0)/idx.length;
+      bx.push(`${lo.toFixed(1)}-${hi.toFixed(1)}`);
+      by.push(+rate.toFixed(4));
+    }
+    plt('data-target', [{
+      type:'bar', x:bx, y:by,
+      marker:{ color: by.map(v=>v>0.3?'#ef4444':v>0.15?'#f59e0b':'#22c55e') }
+    }], layout({ xaxis:{title:feat}, yaxis:{title:`${tgt} Rate`}, showlegend:false }));
+  }
+}
+
+// ─────────────────────────────────────────────
+// PAGE ROUTER
+// ─────────────────────────────────────────────
+const rendered = {};
+
+function renderPage(p) {
+  if (rendered[p]) return;
+  rendered[p] = true;
+  if (p === 'overview')  renderOverview();
+  if (p === 'credit')    renderCredit();
+  if (p === 'insurance') renderInsurance();
+  if (p === 'churn')     renderChurn();
+  if (p === 'fraud')     renderFraud();
+  if (p === 'compare')   renderCompare();
+  if (p === 'data')      renderData();
 }

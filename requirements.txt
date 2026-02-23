@@ -1,5 +1,7 @@
-flask==3.0.3
-numpy==1.26.4
-pandas==2.2.2
-scikit-learn==1.5.1
-gunicorn==22.0.0
+flask>=2.3,<4
+numpy>=1.24
+pandas>=2.0
+scikit-learn>=1.4
+statsmodels>=0.14
+plotly>=5.18
+gunicorn>=21

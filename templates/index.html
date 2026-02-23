@@ -1,169 +1,478 @@
-{% extends 'base.html' %}
-{% block title %}Home — Banking & Insurance ML Platform{% endblock %}
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Banking & Insurance ML Platform</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+<link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
 
-{% block content %}
-<div class="hero-section text-center py-5">
-  <div class="hero-badge mb-3">🏦 Banking & Insurance · ML Research Platform</div>
-  <h1 class="hero-title">Machine Learning for<br><span class="gradient-text">Financial Risk Analytics</span></h1>
-  <p class="hero-subtitle mt-3 mx-auto">
-    An interactive, end-to-end portfolio demonstrating Generalized Linear Models,
-    Decision Trees, Bagging, and Boosting applied to credit-default and insurance-claim prediction —
-    powered entirely by synthetic data.
-  </p>
-  <div class="d-flex justify-content-center gap-3 mt-4 flex-wrap">
-    <a href="/data-explorer" class="btn btn-primary btn-lg px-4">
-      <i class="bi bi-table me-2"></i>Explore Data
+<!-- ═══════════ SIDEBAR ═══════════ -->
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <h5><i class="bi bi-bank2"></i> ML Platform</h5>
+    <small>Banking & Insurance Analytics</small>
+  </div>
+  <nav class="mt-2 flex-grow-1">
+    <a class="nav-link active" onclick="show('overview')" href="#">
+      <i class="bi bi-grid-1x2-fill"></i> Overview
     </a>
-    <a href="/model-comparison" class="btn btn-outline-primary btn-lg px-4">
-      <i class="bi bi-bar-chart-line-fill me-2"></i>Compare Models
+    <a class="nav-link" onclick="show('credit')" href="#">
+      <i class="bi bi-credit-card-fill"></i> Credit Risk
     </a>
-    <a href="/stakeholder" class="btn btn-outline-success btn-lg px-4">
-      <i class="bi bi-people-fill me-2"></i>Stakeholder View
+    <a class="nav-link" onclick="show('insurance')" href="#">
+      <i class="bi bi-shield-check"></i> Insurance Pricing
     </a>
+    <a class="nav-link" onclick="show('churn')" href="#">
+      <i class="bi bi-person-x-fill"></i> Churn Prediction
+    </a>
+    <a class="nav-link" onclick="show('fraud')" href="#">
+      <i class="bi bi-exclamation-triangle-fill"></i> Fraud Detection
+    </a>
+    <a class="nav-link" onclick="show('compare')" href="#">
+      <i class="bi bi-bar-chart-line-fill"></i> Model Comparison
+    </a>
+    <a class="nav-link" onclick="show('data')" href="#">
+      <i class="bi bi-table"></i> Data Explorer
+    </a>
+  </nav>
+  <div class="p-3 border-top" style="border-color:#334155!important;font-size:.72rem;color:#475569;">
+    <i class="bi bi-cpu-fill text-primary me-1"></i>
+    Synthetic data · Educational use only
   </div>
 </div>
 
-<!-- KPI Cards (live) -->
-<div class="row g-4 px-2 mt-2" id="kpi-row">
-  <div class="col-12"><h5 class="section-heading"><i class="bi bi-speedometer2 me-2"></i>Live Platform Metrics</h5></div>
-  <div class="col-sm-6 col-xl-3">
-    <div class="kpi-card">
-      <div class="kpi-icon bg-blue"><i class="bi bi-people-fill"></i></div>
-      <div class="kpi-body">
-        <div class="kpi-label">Banking Records</div>
-        <div class="kpi-value" id="kpi-banking-n">—</div>
-        <div class="kpi-sub">synthetic portfolio</div>
+<!-- ═══════════ MAIN ═══════════ -->
+<div class="main">
+
+  <!-- ── OVERVIEW ── -->
+  <div class="page active" id="page-overview">
+    <h4 class="fw-bold mb-0"><i class="bi bi-grid-1x2-fill me-2 text-primary"></i>Executive Overview</h4>
+    <p class="text-secondary mb-3" style="font-size:.85rem;">Platform snapshot · All models trained on synthetic data</p>
+
+    <div class="row g-3 mb-3">
+      <div class="col-6 col-lg-3">
+        <div class="kpi-card text-center">
+          <div class="kpi-val">{{ cr_auc }}</div>
+          <div class="kpi-label">Credit Risk AUC</div>
+          <div class="mt-1"><span class="badge bg-primary bg-opacity-25 text-primary">Best: GBM</span></div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="kpi-card text-center">
+          <div class="kpi-val" style="color:var(--success)">{{ chn_auc }}</div>
+          <div class="kpi-label">Churn AUC</div>
+          <div class="mt-1"><span class="badge bg-success bg-opacity-25 text-success">Best: GBM</span></div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="kpi-card text-center">
+          <div class="kpi-val" style="color:var(--warn)">{{ frd_auc }}</div>
+          <div class="kpi-label">Fraud AUC</div>
+          <div class="mt-1"><span class="badge bg-warning bg-opacity-25 text-warning">Best: GBM</span></div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="kpi-card text-center">
+          <div class="kpi-val" style="color:var(--danger)">{{ ins_r2 }}</div>
+          <div class="kpi-label">Insurance R²</div>
+          <div class="mt-1"><span class="badge bg-danger bg-opacity-25 text-danger">Best: GBM</span></div>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-sm-6 col-xl-3">
-    <div class="kpi-card">
-      <div class="kpi-icon bg-purple"><i class="bi bi-shield-check"></i></div>
-      <div class="kpi-body">
-        <div class="kpi-label">Insurance Records</div>
-        <div class="kpi-value" id="kpi-insurance-n">—</div>
-        <div class="kpi-sub">synthetic portfolio</div>
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">Model Family Comparison</div>
+          <div class="section-sub">AUC across classification tasks</div>
+          <div id="ov-radar" style="height:320px;"></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">Data at a Glance</div>
+          <div class="section-sub">Synthetic training dataset sizes</div>
+          <div id="ov-bar" style="height:320px;"></div>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-sm-6 col-xl-3">
-    <div class="kpi-card">
-      <div class="kpi-icon bg-orange"><i class="bi bi-exclamation-triangle-fill"></i></div>
-      <div class="kpi-body">
-        <div class="kpi-label">Default Rate</div>
-        <div class="kpi-value" id="kpi-default-rate">—</div>
-        <div class="kpi-sub">banking portfolio</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-xl-3">
-    <div class="kpi-card">
-      <div class="kpi-icon bg-green"><i class="bi bi-cpu-fill"></i></div>
-      <div class="kpi-body">
-        <div class="kpi-label">ML Models</div>
-        <div class="kpi-value">4</div>
-        <div class="kpi-sub">GLM · Tree · RF · GBM</div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- Module cards -->
-<div class="row g-4 px-2 mt-2">
-  <div class="col-12"><h5 class="section-heading"><i class="bi bi-grid-fill me-2"></i>Platform Modules</h5></div>
-
-  {% set modules = [
-    ('/data-explorer', 'bi-table', 'bg-blue', 'Data Explorer',
-     'Visualize distributions, correlations, and target relationships across both datasets.'),
-    ('/glm', 'bi-graph-up-arrow', 'bg-purple', 'GLM — Logistic Regression',
-     'Interpretable log-odds model with coefficient analysis, calibration, and ROC curves.'),
-    ('/decision-tree', 'bi-diagram-3-fill', 'bg-teal', 'Decision Tree',
-     'Interactive single tree with depth-complexity tradeoff, rule extraction, and GINI/Entropy comparison.'),
-    ('/random-forest', 'bi-tree-fill', 'bg-green', 'Random Forest (Bagging)',
-     'Ensemble of decorrelated trees; OOB score, learning curve vs n_estimators, feature importance.'),
-    ('/gradient-boosting', 'bi-lightning-charge-fill', 'bg-orange', 'Gradient Boosting',
-     'Additive boosting with staged-score curves, learning rate tuning, and overfitting diagnostics.'),
-    ('/model-comparison', 'bi-bar-chart-line-fill', 'bg-red', 'Model Comparison',
-     'Side-by-side ROC overlays, metric heatmaps, and business impact analysis across all four model families.'),
-    ('/stakeholder', 'bi-people-fill', 'bg-indigo', 'Stakeholder Dashboard',
-     'Plain-English KPIs, risk segments, and model recommendations — no data science jargon.'),
-  ] %}
-
-  {% for url, icon, bg, title, desc in modules %}
-  <div class="col-md-6 col-xl-4">
-    <a href="{{ url }}" class="module-card text-decoration-none">
-      <div class="module-icon {{ bg }}"><i class="bi {{ icon }}"></i></div>
-      <div class="module-body">
-        <div class="module-title">{{ title }}</div>
-        <div class="module-desc">{{ desc }}</div>
-      </div>
-      <i class="bi bi-arrow-right module-arrow"></i>
-    </a>
-  </div>
-  {% endfor %}
-</div>
-
-<!-- Quick model overview -->
-<div class="row g-4 px-2 mt-2 mb-4">
-  <div class="col-12"><h5 class="section-heading"><i class="bi bi-diagram-2-fill me-2"></i>Model Family Overview</h5></div>
-  <div class="col-12">
-    <div class="card border-0 shadow-sm">
-      <div class="card-body p-4">
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-dark">
-              <tr>
-                <th>Model</th><th>Family</th><th>Key Strength</th><th>Interpretability</th><th>Typical Use Case</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><span class="badge bg-purple">GLM</span> Logistic Regression</td>
-                <td>Linear</td>
-                <td>Odds ratios, regulatory compliance</td>
-                <td><span class="text-success fw-bold">High</span></td>
-                <td>Credit scorecards, regulatory models</td>
-              </tr>
-              <tr>
-                <td><span class="badge bg-teal">Tree</span> Decision Tree</td>
-                <td>Non-linear</td>
-                <td>Visual rule extraction</td>
-                <td><span class="text-success fw-bold">High</span></td>
-                <td>Policy rules, fraud flags</td>
-              </tr>
-              <tr>
-                <td><span class="badge bg-green">RF</span> Random Forest</td>
-                <td>Bagging Ensemble</td>
-                <td>Low variance, robust features</td>
-                <td><span class="text-warning fw-bold">Medium</span></td>
-                <td>Portfolio-level risk scoring</td>
-              </tr>
-              <tr>
-                <td><span class="badge bg-orange">GBM</span> Gradient Boosting</td>
-                <td>Boosting Ensemble</td>
-                <td>High accuracy, bias reduction</td>
-                <td><span class="text-warning fw-bold">Medium</span></td>
-                <td>Pricing models, claim prediction</td>
-              </tr>
-            </tbody>
-          </table>
+    <div class="row g-3 mt-0">
+      <div class="col-12">
+        <div class="section-card">
+          <div class="section-title">Model Families Explained
+            <span class="ms-2 badge bg-primary bg-opacity-25 text-primary" style="font-size:.7rem;">Stakeholder Guide</span>
+          </div>
+          <div class="row g-2 mt-1">
+            <div class="col-md-4">
+              <div class="stakeholder-box">
+                <div class="label">🌳 Decision Tree</div>
+                <p class="mb-0 mt-1" style="font-size:.82rem;">A simple flowchart of "if-then" rules. Easy to explain to regulators — you can literally print the rules. Lower accuracy but maximum transparency.</p>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stakeholder-box">
+                <div class="label">🌲 Bagging (Random Forest)</div>
+                <p class="mb-0 mt-1" style="font-size:.82rem;">Hundreds of diverse decision trees vote together. Like getting opinions from many independent analysts. High accuracy, moderate explainability.</p>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stakeholder-box">
+                <div class="label">🚀 Boosting (GBM / AdaBoost)</div>
+                <p class="mb-0 mt-1" style="font-size:.82rem;">Trees built sequentially, each fixing the mistakes of the last. Usually the most accurate approach — the engine behind many winning credit models.</p>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stakeholder-box">
+                <div class="label">📊 GLM (Logistic / Gamma / Tweedie)</div>
+                <p class="mb-0 mt-1" style="font-size:.82rem;">The insurance industry's long-trusted statistical model. Produces exact coefficients — loved by actuaries and regulators for auditability.</p>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stakeholder-box">
+                <div class="label">🕵️ Isolation Forest</div>
+                <p class="mb-0 mt-1" style="font-size:.82rem;">Detects fraud by isolating unusual transactions. Doesn't need labelled fraud examples to train. Ideal for "unknown unknowns" in financial crime.</p>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="stakeholder-box">
+                <div class="label">🎯 Accuracy vs. Explainability</div>
+                <p class="mb-0 mt-1" style="font-size:.82rem;">In regulated industries, a less-accurate explainable model often wins over a black-box. This platform shows both ends of the spectrum.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
-{% endblock %}
 
-{% block scripts %}
+  <!-- ── CREDIT RISK ── -->
+  <div class="page" id="page-credit">
+    <h4 class="fw-bold mb-0"><i class="bi bi-credit-card-fill me-2" style="color:#60a5fa"></i>Credit Risk Scoring</h4>
+    <p class="text-secondary mb-3" style="font-size:.85rem;">Predict probability of loan default · Binary classification</p>
+    <div class="stakeholder-box mb-3">
+      <div class="label">📋 Business Context</div>
+      <p class="mb-0 mt-1" style="font-size:.83rem;">Every loan application is scored to estimate default probability. A higher score = higher risk. The bank sets a cut-off (e.g. reject above 0.30) to balance profitability and regulatory capital. The GLM model provides auditable coefficients for credit policy committees; GBM maximises predictive power for automated decisions.</p>
+    </div>
+    <div class="row g-3 mb-3" id="cr-kpis"></div>
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="section-card">
+          <div class="section-title">ROC Curves — All Models</div>
+          <div class="section-sub">Higher and further left = better discrimination</div>
+          <div id="cr-roc" style="height:350px;"></div>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="section-card">
+          <div class="section-title">Feature Importance (GBM)</div>
+          <div id="cr-imp" style="height:350px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div class="section-card">
+          <div class="section-title">Confusion Matrix — GBM</div>
+          <div id="cr-cm" style="height:280px;"></div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="section-card">
+          <div class="section-title">GLM Coefficients <span class="ms-2 model-badge badge-glm">statsmodels</span></div>
+          <div class="section-sub">Positive = increases default probability</div>
+          <div id="cr-coef" style="height:280px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="section-card">
+          <div class="section-title">Decision Tree Rules <span class="ms-2 model-badge badge-dt">max_depth = 3</span></div>
+          <div class="technical-box">
+            <div class="label">🔬 Technical Detail</div>
+            <p style="font-size:.8rem;color:#86efac;margin:.5rem 0 0;">These if-then rules can be turned directly into a scoreboard or credit policy. Every split threshold is auditable.</p>
+          </div>
+          <pre class="tree-pre" id="cr-rules"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── INSURANCE ── -->
+  <div class="page" id="page-insurance">
+    <h4 class="fw-bold mb-0"><i class="bi bi-shield-check me-2" style="color:#f59e0b"></i>Insurance Premium Pricing</h4>
+    <p class="text-secondary mb-3" style="font-size:.85rem;">Predict premium · Regression · GLM Tweedie / Gamma</p>
+    <div class="stakeholder-box mb-3">
+      <div class="label">📋 Business Context</div>
+      <p class="mb-0 mt-1" style="font-size:.83rem;">Actuaries use GLMs to price insurance policies — the Tweedie family handles the awkward mix of zero claims and positive claim amounts. ML models (GBM) can improve on GLMs but require more governance. This module compares both approaches side-by-side.</p>
+    </div>
+    <div class="row g-3 mb-3" id="ins-kpis"></div>
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="section-card">
+          <div class="section-title">Predicted vs Actual Premium</div>
+          <select class="form-select form-select-sm mb-2" id="ins-model-sel" style="background:#0f172a;border-color:#334155;color:#e2e8f0;width:auto;"></select>
+          <div id="ins-scatter" style="height:320px;"></div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="section-card">
+          <div class="section-title">Feature Importance (GBM)</div>
+          <div id="ins-imp" style="height:370px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="section-card">
+          <div class="section-title">Model Comparison — Regression Metrics</div>
+          <div id="ins-compare" style="height:280px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CHURN ── -->
+  <div class="page" id="page-churn">
+    <h4 class="fw-bold mb-0"><i class="bi bi-person-x-fill me-2" style="color:#a78bfa"></i>Customer Churn Prediction</h4>
+    <p class="text-secondary mb-3" style="font-size:.85rem;">Predict which customers will leave · Binary classification</p>
+    <div class="stakeholder-box mb-3">
+      <div class="label">📋 Business Context</div>
+      <p class="mb-0 mt-1" style="font-size:.83rem;">Retaining a banking customer costs 5× less than acquiring a new one. This model scores each customer monthly; the top 10% highest-risk customers are flagged for a retention campaign (fee waiver, personalised offer, relationship call).</p>
+    </div>
+    <div class="row g-3 mb-3" id="chn-kpis"></div>
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="section-card">
+          <div class="section-title">ROC Curves — All Models</div>
+          <div id="chn-roc" style="height:350px;"></div>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="section-card">
+          <div class="section-title">Feature Importance (GBM)</div>
+          <div id="chn-imp" style="height:350px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">Churn Rate by Satisfaction Score</div>
+          <div id="chn-sat" style="height:280px;"></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">Churn Rate by Tenure Band</div>
+          <div id="chn-tenure" style="height:280px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FRAUD ── -->
+  <div class="page" id="page-fraud">
+    <h4 class="fw-bold mb-0"><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Fraud Detection</h4>
+    <p class="text-secondary mb-3" style="font-size:.85rem;">Identify anomalous transactions · Isolation Forest + DT + GBM</p>
+    <div class="stakeholder-box mb-3">
+      <div class="label">📋 Business Context</div>
+      <p class="mb-0 mt-1" style="font-size:.83rem;">Only ~5% of transactions are fraudulent — a heavily imbalanced problem. Isolation Forest catches novel fraud patterns without needing labelled examples; GBM achieves higher AUC when historical labels are available.</p>
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-6 col-lg-3">
+        <div class="kpi-card text-center">
+          <div class="kpi-val" style="color:var(--warn)">{{ frd_rate }}</div>
+          <div class="kpi-label">Fraud Rate</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="kpi-card text-center">
+          <div class="kpi-val">{{ frd_iso_auc }}</div>
+          <div class="kpi-label">Isolation Forest AUC</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="kpi-card text-center">
+          <div class="kpi-val" style="color:var(--success)">{{ frd_gb_auc }}</div>
+          <div class="kpi-label">GBM AUC</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="kpi-card text-center">
+          <div class="kpi-val" style="color:var(--accent2)">{{ frd_dt_auc }}</div>
+          <div class="kpi-label">Decision Tree AUC</div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="section-card">
+          <div class="section-title">Transaction Scatter — Amount vs Velocity</div>
+          <div class="section-sub">Red = fraud · Blue = legitimate</div>
+          <div id="frd-scatter" style="height:350px;"></div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="section-card">
+          <div class="section-title">ROC Curves</div>
+          <div id="frd-roc" style="height:350px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">Feature Importance (GBM)</div>
+          <div id="frd-imp" style="height:280px;"></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">Decision Tree Rules <span class="ms-2 model-badge badge-dt">max_depth = 3</span></div>
+          <pre class="tree-pre" id="frd-rules" style="height:260px;overflow-y:auto;"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODEL COMPARISON ── -->
+  <div class="page" id="page-compare">
+    <h4 class="fw-bold mb-0"><i class="bi bi-bar-chart-line-fill me-2 text-info"></i>Model Comparison</h4>
+    <p class="text-secondary mb-3" style="font-size:.85rem;">Side-by-side performance across all use cases</p>
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="section-card">
+          <div class="section-title">Classification AUC — All Models × All Tasks</div>
+          <div id="cmp-auc" style="height:400px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">Accuracy Comparison</div>
+          <div id="cmp-acc" style="height:340px;"></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">F1 Score Comparison</div>
+          <div id="cmp-f1" style="height:340px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="section-card">
+          <div class="section-title">Model Selection Guide</div>
+          <div class="row g-2 mt-1">
+            <div class="col-md-3"><div class="technical-box" style="height:100%;">
+              <div class="label">Use Decision Tree when…</div>
+              <ul style="font-size:.8rem;color:#86efac;margin-top:.5rem;padding-left:1.2rem;">
+                <li>Regulators need full rule transparency</li><li>Building a scoreboard / policy</li><li>Data is small or noisy</li>
+              </ul></div>
+            </div>
+            <div class="col-md-3"><div class="technical-box" style="height:100%;border-color:#16a34a60;">
+              <div class="label" style="color:#86efac;">Use Random Forest when…</div>
+              <ul style="font-size:.8rem;color:#86efac;margin-top:.5rem;padding-left:1.2rem;">
+                <li>You need robust predictions</li><li>Feature selection matters</li><li>Data has many missing values</li>
+              </ul></div>
+            </div>
+            <div class="col-md-3"><div class="technical-box" style="height:100%;border-color:#d9770660;">
+              <div class="label" style="color:#fb923c;">Use GBM / AdaBoost when…</div>
+              <ul style="font-size:.8rem;color:#fb923c;margin-top:.5rem;padding-left:1.2rem;">
+                <li>Maximum predictive accuracy needed</li><li>Imbalanced classes (fraud)</li><li>Rich feature engineering available</li>
+              </ul></div>
+            </div>
+            <div class="col-md-3"><div class="technical-box" style="height:100%;border-color:#be123c60;">
+              <div class="label" style="color:#fb7185;">Use GLM when…</div>
+              <ul style="font-size:.8rem;color:#fb7185;margin-top:.5rem;padding-left:1.2rem;">
+                <li>Actuarial / regulatory requirement</li><li>Coefficients must be interpretable</li><li>Insurance pricing (Tweedie/Gamma)</li>
+              </ul></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DATA EXPLORER ── -->
+  <div class="page" id="page-data">
+    <h4 class="fw-bold mb-0"><i class="bi bi-table me-2 text-success"></i>Data Explorer</h4>
+    <p class="text-secondary mb-3" style="font-size:.85rem;">Browse synthetic training datasets · Distributions · Target rates</p>
+    <div class="mb-3">
+      <select class="form-select form-select-sm" style="background:#1e293b;border-color:#334155;color:#e2e8f0;width:auto;display:inline-block;" id="data-sel" onchange="renderData()">
+        <option value="credit">Credit Risk</option>
+        <option value="insurance">Insurance</option>
+        <option value="churn">Churn</option>
+        <option value="fraud">Fraud</option>
+      </select>
+    </div>
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="section-card">
+          <div class="section-title">Data Sample (first 20 rows)</div>
+          <div style="overflow-x:auto;"><table class="table data-table table-dark table-hover" id="data-table"></table></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">Feature Distribution</div>
+          <select class="form-select form-select-sm mb-2" style="background:#0f172a;border-color:#334155;color:#e2e8f0;width:auto;" id="dist-feat-sel" onchange="renderDist()"></select>
+          <div id="data-dist" style="height:280px;"></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="section-card">
+          <div class="section-title">Target Rate by Feature Bin</div>
+          <div id="data-target" style="height:310px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script src="/static/charts.js"></script>
 <script>
-  // Load KPI numbers
-  async function loadKPIs() {
-    const b = await fetch('/api/data/overview?dataset=banking').then(r => r.json());
-    const i = await fetch('/api/data/overview?dataset=insurance').then(r => r.json());
-    document.getElementById('kpi-banking-n').textContent = b.n_rows.toLocaleString();
-    document.getElementById('kpi-insurance-n').textContent = i.n_rows.toLocaleString();
-    document.getElementById('kpi-default-rate').textContent = (b.target_rate * 100).toFixed(1) + '%';
-  }
-  loadKPIs();
+// ── DATA FROM FLASK ──
+const CR  = {{ cr_json|safe }};
+const INS = {{ ins_json|safe }};
+const CHN = {{ chn_json|safe }};
+const FRD = {{ frd_json|safe }};
+
+const FULL = {
+  credit:    {{ cr_full_sample|safe }},
+  insurance: {{ ins_full_sample|safe }},
+  churn:     {{ chn_full_sample|safe }},
+  fraud:     {{ frd_full_sample|safe }},
+};
+
+const DIST = {
+  credit:    {{ cr_dist|safe }},
+  insurance: {{ ins_dist|safe }},
+  churn:     {{ chn_dist|safe }},
+  fraud:     {{ frd_dist|safe }},
+};
+
+const CHN_SAT_X = {{ chn_sat_x|safe }};
+const CHN_SAT_Y = {{ chn_sat_y|safe }};
+const CHN_TEN_X = {{ chn_ten_x|safe }};
+const CHN_TEN_Y = {{ chn_ten_y|safe }};
+
+// ── BOOT ──
+renderOverview();
+const rendered = {overview: true};
 </script>
-{% endblock %}
+</body>
+</html>
